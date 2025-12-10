@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Survivors: Elite</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
+
+        :root {
+            --primary: #00f3ff;
+            --secondary: #ff0055;
+            --gold: #ffd700;
+            --bg: #050510;
+            --rare: #bf00ff;
+        }
+
+        body {
+            margin: 0; overflow: hidden; background-color: var(--bg);
+            font-family: 'Orbitron', sans-serif; touch-action: none; color: white; user-select: none;
+        }
+
+        #gameCanvas { display: block; width: 100vw; height: 100vh; }
+
+        /* UI OVERLAYS */
+        .overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            background: rgba(0,0,0,0.92); z-index: 10; transition: opacity 0.3s;
+        }
+
+        .hidden { display: none !important; opacity: 0; pointer-events: none; }
+
+        .card {
+            background: rgba(20, 20, 30, 0.95);
+            border: 1px solid var(--primary);
+            box-shadow: 0 0 30px rgba(0, 243, 255, 0.15);
+            padding: 1.5rem; border-radius: 12px;
+            text-align: center; width: 85%; max-width: 380px;
+            max-height: 90vh; overflow-y: auto; 
+        }
+
+        h1 { margin: 0 0 5px 0; color: var(--primary); text-shadow: 0 0 15px var(--primary); letter-spacing: 2px; font-size: 1.5rem; }
+        
+        /* Form Elements */
+        select, input {
+            width: 100%; padding: 12px; margin: 8px 0;
+            background: rgba(0,0,0,0.6); border: 1px solid #444; color: white;
+            border-radius: 4px; font-family: 'Orbitron'; box-sizing: border-box;
+            appearance: none; 
+        }
+        select:focus, input:focus { outline: none; border-color: var(--primary); }
+
+        button {
+            width: 100%; padding: 14px; margin-top: 10px;
+            background: linear-gradient(90deg, var(--primary), #00aaff);
+            border: none; color: #000; font-weight: 900; letter-spacing: 1px;
+            border-radius: 4px; cursor: pointer; text-transform: uppercase;
+            position: relative; overflow: hidden;
+        }
+        button:active { transform: scale(0.98); }
+        button.secondary { background: transparent; border: 1px solid #555; color: #aaa; margin-top: 8px; font-size: 0.8rem; padding: 10px; }
+        
+        /* Leaderboard */
+        .lb-container { margin-top: 15px; border-top: 1px solid #333; padding-top: 10px; }
+        .lb-title { color: var(--gold); font-size: 0.9rem; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 1px; }
+        .lb-list { 
+            list-style: none; padding: 0; margin: 0; 
+            max-height: 120px; overflow-y: auto; 
+            text-align: left; font-size: 0.8rem;
+            border: 1px solid #222; background: rgba(0,0,0,0.3);
+        }
+        .lb-item { 
+            padding: 5px 10px; border-bottom: 1px solid #222; 
+            display: flex; justify-content: space-between;
+        }
+        .lb-item:nth-child(1) { color: var(--gold); }
+        .lb-item:nth-child(2) { color: silver; }
+        .lb-item:nth-child(3) { color: #cd7f32; } 
+        .lb-rank { width: 20px; opacity: 0.7; }
+        .lb-name { flex-grow: 1; }
+        .lb-time { font-weight: bold; }
+
+        /* Upgrade Buttons */
+        .upgrade-btn {
+            background: linear-gradient(90deg, #111, #222);
+            border: 1px solid #444; color: white; text-align: left;
+            margin-top: 8px; display: flex; flex-direction: column;
+            transition: border-color 0.2s;
+        }
+        .upgrade-btn:hover { border-color: var(--primary); }
+        .up-title { color: var(--primary); font-size: 0.9rem; margin-bottom: 2px; }
+        .up-desc { color: #888; font-size: 0.7rem; text-transform: none; font-weight: 400; }
+        
+        .upgrade-btn.rare { border-color: var(--rare); box-shadow: 0 0 10px rgba(191, 0, 255, 0.2); }
+        .upgrade-btn.rare .up-title { color: var(--rare); }
+
+        /* HUD */
+        #hud { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; pointer-events: none; z-index: 5; }
+        #timer-display {
+            position: absolute; top: 40px; width: 100%; text-align: center;
+            font-size: 1.5rem; font-weight: 900; color: white; text-shadow: 0 0 10px black; pointer-events: none;
+        }
+        .bar-wrapper { width: 30%; }
+        .bar-container { width: 100%; height: 10px; background: #111; border: 1px solid #444; border-radius: 2px; margin-top: 2px; }
+        #xpBar { width: 0%; height: 100%; background: linear-gradient(90deg, #00ff00, #aaff00); transition: width 0.2s; }
+        #hpBar { width: 100%; height: 100%; background: linear-gradient(90deg, #ff0055, #ff4444); transition: width 0.2s; }
+        .hud-text { font-size: 10px; color: #ccc; text-transform: uppercase; display: flex; justify-content: space-between; }
+
+        /* STATS BOX */
+        #stats-panel {
+            position: absolute; top: 80px; left: 10px;
+            background: rgba(0, 0, 0, 0.6); border-left: 3px solid var(--primary);
+            padding: 8px 12px; border-radius: 0 5px 5px 0; font-size: 10px;
+            color: rgba(255, 255, 255, 0.8); pointer-events: none; backdrop-filter: blur(4px);
+        }
+        .stat-row { display: flex; justify-content: space-between; width: 140px; margin-bottom: 3px; }
+        .stat-val { color: white; font-weight: bold; }
+
+        #joystick-zone { position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%); color: rgba(255,255,255,0.2); font-size: 0.7rem; pointer-events: none; }
+        #message-area { color: var(--secondary); height: 20px; margin-bottom: 5px; font-size: 0.8rem; }
+    </style>
+</head>
+<body>
+
+    <div id="loginScreen" class="overlay">
+        <div class="card">
+            <h1>NEON SURVIVORS</h1>
+            <div id="message-area"></div>
+            
+            <div id="loginForm">
+                <select id="userSelect">
+                    <option value="" disabled selected>Loading Operators...</option>
+                </select>
+                <input type="password" id="password" placeholder="ACCESS CODE">
+                <button onclick="handleLogin()">START MISSION</button>
+                <button class="secondary" onclick="toggleForm('register')">NEW ID</button>
+            </div>
+
+            <div id="registerForm" class="hidden">
+                <input type="text" id="reg-username" placeholder="SET ID (No spaces)">
+                <input type="password" id="reg-password" placeholder="SET CODE">
+                <button onclick="handleRegister()">CREATE</button>
+                <button class="secondary" onclick="toggleForm('login')">BACK</button>
+            </div>
+            
+            <div class="lb-container">
+                <div class="lb-title">Top 10 Survivors</div>
+                <ul id="lb-list" class="lb-list">
+                    <li class="lb-item" style="justify-content:center">Loading Data...</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div id="gameUI" class="hidden">
+        <div id="timer-display">00:00</div>
+        
+        <div id="hud">
+            <div class="bar-wrapper">
+                <div class="hud-text"><span>HP</span></div>
+                <div class="bar-container"><div id="hpBar"></div></div>
+            </div>
+            <div class="bar-wrapper" style="text-align:right">
+                <div class="hud-text"><span>LVL</span> <span id="levelDisplay" style="color:var(--primary)">1</span></div>
+                <div class="bar-container"><div id="xpBar"></div></div>
+            </div>
+        </div>
+
+        <div id="stats-panel">
+            <div class="stat-row"><span>TIME</span> <span id="s-time" class="stat-val" style="color:yellow">00:00</span></div>
+            <div class="stat-row"><span>HP</span> <span id="s-hp" class="stat-val">100</span></div>
+            <div class="stat-row"><span>DMG</span> <span id="s-dmg" class="stat-val">25</span></div>
+            <div class="stat-row"><span>ATK SPD</span> <span id="s-spd" class="stat-val">1.0/s</span></div>
+            <div class="stat-row"><span>MV SPD</span> <span id="s-move" class="stat-val">3.0</span></div>
+            <div class="stat-row"><span>DEF</span> <span id="s-def" class="stat-val">0</span></div>
+            <div class="stat-row"><span>MAG</span> <span id="s-mag" class="stat-val">100</span></div>
+            <div class="stat-row"><span>PROJ</span> <span id="s-cnt" class="stat-val">1</span></div>
+        </div>
+
+        <div id="joystick-zone">DRAG TO MOVE</div>
+    </div>
+
+    <div id="levelUpScreen" class="overlay hidden">
+        <div class="card">
+            <h1>SYSTEM UPGRADE</h1>
+            <p>Select Module</p>
+            <div id="upgrade-options">
+                </div>
+        </div>
+    </div>
+    
+    <div id="gameOverScreen" class="overlay hidden">
+        <div class="card">
+            <h1 style="color:var(--secondary)">M.I.A.</h1>
+            <p>Survived For:</p>
+            <h2 id="finalTime" style="font-size: 2rem; color: white; margin: 10px 0;">00:00</h2>
+            <button onclick="resetGame()">RETRY MISSION</button>
+            <button class="secondary" onclick="location.reload()">LOGOUT</button>
+        </div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDqWWcSqll-u-WsIIv_ZA8y-gSuobIpGGA",
+            authDomain: "vtest-52cca.firebaseapp.com",
+            projectId: "vtest-52cca",
+            storageBucket: "vtest-52cca.firebasestorage.app",
+            messagingSenderId: "250235329130",
+            appId: "1:250235329130:web:d8354310b3f5537b094813",
+            measurementId: "G-B46T7H3DPZ"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // --- AUTH & DATA LOADING ---
+        
+        async function loadUsersAndLeaderboard() {
+            const select = document.getElementById('userSelect');
+            const lbList = document.getElementById('lb-list');
+            select.innerHTML = `<option value="" disabled selected>Loading...</option>`;
+
+            try {
+                // 1. Get Users for Dropdown
+                const userSnapshot = await getDocs(collection(db, "users"));
+                select.innerHTML = `<option value="" disabled selected>Select Operator</option>`;
+                
+                if(userSnapshot.empty) {
+                    select.innerHTML = `<option value="" disabled>No users found</option>`;
+                }
+
+                userSnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    const opt = document.createElement('option');
+                    opt.value = data.username;
+                    opt.innerText = data.username.toUpperCase();
+                    select.appendChild(opt);
+                });
+
+                // 2. Get Top 10 Leaderboard
+                const q = query(collection(db, "users"), orderBy("bestTime", "desc"), limit(10));
+                const lbSnap = await getDocs(q);
+                
+                lbList.innerHTML = ""; // Clear existing
+                
+                if(lbSnap.empty) {
+                    lbList.innerHTML = `<li class="lb-item" style="justify-content:center">No Records Yet</li>`;
+                } else {
+                    let rank = 1;
+                    lbSnap.forEach((doc) => {
+                        const data = doc.data();
+                        const li = document.createElement('li');
+                        li.className = 'lb-item';
+                        li.innerHTML = `
+                            <span class="lb-rank">#${rank}</span>
+                            <span class="lb-name">${data.username}</span>
+                            <span class="lb-time">${formatTime(data.bestTime || 0)}</span>
+                        `;
+                        lbList.appendChild(li);
+                        rank++;
+                    });
+                }
+
+            } catch (e) {
+                console.error("DB Error:", e);
+                select.innerHTML = `<option>Connection Error</option>`;
+                lbList.innerHTML = `<li class="lb-item" style="color:red; justify-content:center">Index Required (Check Console)</li>`;
+            }
+        }
+
+        window.toggleForm = (view) => {
+            document.getElementById('message-area').innerText = "";
+            if(view === 'register') { 
+                document.getElementById('loginForm').classList.add('hidden'); 
+                document.getElementById('registerForm').classList.remove('hidden'); 
+                document.querySelector('.lb-container').classList.add('hidden'); // Hide LB on register
+            } else { 
+                document.getElementById('registerForm').classList.add('hidden'); 
+                document.getElementById('loginForm').classList.remove('hidden'); 
+                document.querySelector('.lb-container').classList.remove('hidden'); // Show LB
+                loadUsersAndLeaderboard(); // Refresh list on back
+            }
+        }
+
+        async function hashPassword(str) {
+            const msgBuffer = new TextEncoder().encode(str);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+            return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        window.handleLogin = async () => {
+            const user = document.getElementById('userSelect').value;
+            const pass = document.getElementById('password').value;
+            const msg = document.getElementById('message-area');
+            if(!user || !pass) { msg.innerText = "SELECT USER & ENTER PASS"; return; }
+
+            try {
+                const docSnap = await getDoc(doc(db, "users", user));
+                if (docSnap.exists() && docSnap.data().passwordHash === await hashPassword(pass)) {
+                    startGameSession(user, docSnap.data().bestTime || 0);
+                } else { msg.innerText = "WRONG PASSWORD"; }
+            } catch (e) { console.error(e); msg.innerText = "NETWORK ERROR"; }
+        }
+
+        window.handleRegister = async () => {
+            const user = document.getElementById('reg-username').value.trim().toLowerCase().replace(/\s/g, '');
+            const pass = document.getElementById('reg-password').value;
+            const msg = document.getElementById('message-area');
+            if(!user || !pass) { msg.innerText = "FIELDS REQUIRED"; return; }
+
+            try {
+                const docRef = doc(db, "users", user);
+                if ((await getDoc(docRef)).exists()) { msg.innerText = "ID TAKEN"; return; }
+                await setDoc(docRef, { 
+                    username: user, 
+                    passwordHash: await hashPassword(pass), 
+                    bestTime: 0, 
+                    joined: new Date().toISOString() 
+                });
+                startGameSession(user, 0);
+            } catch (e) { console.error(e); msg.innerText = "CREATION FAILED"; }
+        }
+
+        window.saveRunData = async (timeVal) => {
+            if(!window.currentUser) return;
+            const docRef = doc(db, "users", window.currentUser);
+            try {
+                const snap = await getDoc(docRef);
+                if(snap.exists()) {
+                    const currentBest = snap.data().bestTime || 0;
+                    if(timeVal > currentBest) {
+                        await updateDoc(docRef, { bestTime: timeVal });
+                        console.log("New record saved!");
+                    }
+                }
+            } 
+            catch(e) { console.log("Save failed", e); }
+        }
+
+        // Init on load
+        loadUsersAndLeaderboard();
+        
+        window.formatTime = (seconds) => {
+            const m = Math.floor(seconds / 60).toString().padStart(2,'0');
+            const s = Math.floor(seconds % 60).toString().padStart(2,'0');
+            return `${m}:${s}`;
+        }
+    </script>
+
+    <script>
+        // --- GAME ENGINE ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        const WORLD_SIZE = 3000;
+        let camera = { x: 0, y: 0, w: 0, h: 0 };
+
+        let gameState = 'LOGIN';
+        let gameTime = 0; // Seconds
+        let spawnTimer = 0; // Accumulator for spawning
+        let lastTimeUpdate = 0;
+        
+        const joystick = { active: false, x: 0, y: 0, originX: 0, originY: 0, angle: 0, mag: 0 };
+
+        let player = {};
+        let enemies = [];
+        let particles = [];
+        let projectiles = [];
+        let xpGems = [];
+        let damageNumbers = [];
+        let obstacles = []; 
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            camera.w = canvas.width;
+            camera.h = canvas.height;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // --- INPUT ---
+        canvas.addEventListener('touchstart', e => {
+            e.preventDefault();
+            const t = e.changedTouches[0];
+            joystick.active = true;
+            joystick.originX = t.clientX; joystick.originY = t.clientY;
+            joystick.x = t.clientX; joystick.y = t.clientY;
+        }, {passive: false});
+
+        canvas.addEventListener('touchmove', e => {
+            e.preventDefault();
+            if(!joystick.active) return;
+            const t = e.changedTouches[0];
+            joystick.x = t.clientX; joystick.y = t.clientY;
+            const dx = joystick.x - joystick.originX;
+            const dy = joystick.y - joystick.originY;
+            joystick.angle = Math.atan2(dy, dx);
+            joystick.mag = Math.min(Math.sqrt(dx*dx + dy*dy), 50) / 50; 
+        }, {passive: false});
+
+        canvas.addEventListener('touchend', e => { e.preventDefault(); joystick.active = false; joystick.mag = 0; });
+
+        // --- CORE LOGIC ---
+        function startGameSession(user, bestTime) {
+            window.currentUser = user;
+            window.currentBestTime = bestTime;
+            document.getElementById('loginScreen').classList.add('hidden');
+            resetGame();
+        }
+
+        function generateObstacles() {
+            obstacles = [];
+            for(let i=0; i<30; i++) {
+                let w = 80 + Math.random() * 120;
+                let h = 80 + Math.random() * 120;
+                let x = Math.random() * (WORLD_SIZE - w);
+                let y = Math.random() * (WORLD_SIZE - h);
+                // Safe Zone center
+                if(Math.hypot(x - WORLD_SIZE/2, y - WORLD_SIZE/2) > 500) {
+                    obstacles.push({x, y, w, h});
+                }
+            }
+        }
+
+        function resetGame() {
+            gameState = 'PLAYING';
+            document.getElementById('gameOverScreen').classList.add('hidden');
+            document.getElementById('gameUI').classList.remove('hidden');
+            
+            player = {
+                x: WORLD_SIZE / 2,
+                y: WORLD_SIZE / 2,
+                hp: 100, maxHp: 100, lvl: 1, xp: 0, maxXp: 10,
+                speed: 3.0,
+                armor: 0,
+                magnet: 100,
+                color: '#00f3ff',
+                weapons: {
+                    missile: { level: 1, cooldown: 0, maxCooldown: 50, damage: 10, count: 1 },
+                    aura: { level: 1, radius: 70, damage: 1, tick: 0 }
+                }
+            };
+            enemies = []; projectiles = []; xpGems = []; particles = []; damageNumbers = [];
+            gameTime = 0;
+            spawnTimer = 0;
+            lastTimeUpdate = performance.now();
+            generateObstacles();
+            updateHUD();
+            requestAnimationFrame(animate);
+        }
+
+        function checkRectCollide(x, y, size, rect) {
+            return (x + size > rect.x && x - size < rect.x + rect.w &&
+                    y + size > rect.y && y - size < rect.y + rect.h);
+        }
+
+        function movePlayer(dx, dy) {
+            let nextX = player.x + dx;
+            let hitX = false;
+            if(nextX < 10 || nextX > WORLD_SIZE - 10) hitX = true;
+            for(let obs of obstacles) { if(checkRectCollide(nextX, player.y, 10, obs)) hitX = true; }
+            if(!hitX) player.x = nextX;
+
+            let nextY = player.y + dy;
+            let hitY = false;
+            if(nextY < 10 || nextY > WORLD_SIZE - 10) hitY = true;
+            for(let obs of obstacles) { if(checkRectCollide(player.x, nextY, 10, obs)) hitY = true; }
+            if(!hitY) player.y = nextY;
+        }
+
+        class Enemy {
+            constructor() {
+                let safe = false;
+                let tries = 0;
+                while(!safe && tries < 10) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const dist = (Math.max(canvas.width, canvas.height) / 2) + 50 + Math.random() * 200;
+                    this.x = player.x + Math.cos(angle) * dist;
+                    this.y = player.y + Math.sin(angle) * dist;
+                    this.x = Math.max(0, Math.min(WORLD_SIZE, this.x));
+                    this.y = Math.max(0, Math.min(WORLD_SIZE, this.y));
+                    
+                    this.size = 15;
+                    safe = true;
+                    for(let obs of obstacles) {
+                        if(checkRectCollide(this.x, this.y, this.size, obs)) { safe = false; break; }
+                    }
+                    tries++;
+                }
+
+                // Difficulty scaling
+                // 1. HP Scale: +100% every 3 mins
+                const hpMult = 1 + (gameTime / 180); 
+                // 2. Speed Scale: +100% every 400 seconds (~7 mins)
+                const speedMult = 1 + (gameTime / 400);
+
+                this.hp = (15 + (player.lvl * 3)) * hpMult;
+                this.damage = 5 * (1 + (gameTime/300)); 
+                
+                // SPEED CALCULATION
+                const baseSpeed = (1.2 + (Math.random() * 0.8));
+                this.speed = baseSpeed * speedMult;
+                
+                this.color = '#ff0055';
+            }
+            update() {
+                const dx = player.x - this.x; const dy = player.y - this.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                let moveX = (dx/dist) * this.speed; let moveY = (dy/dist) * this.speed;
+
+                let hitObs = false;
+                for(let obs of obstacles) {
+                    if(checkRectCollide(this.x + moveX, this.y + moveY, this.size, obs)) {
+                        hitObs = true;
+                        if(!checkRectCollide(this.x + moveX, this.y, this.size, obs)) { moveY = 0; }
+                        else if(!checkRectCollide(this.x, this.y + moveY, this.size, obs)) { moveX = 0; }
+                        else { moveX = 0; moveY = 0; } 
+                        break;
+                    }
+                }
+                this.x += moveX; this.y += moveY;
+            }
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y - this.size);
+                ctx.lineTo(this.x + this.size, this.y + this.size);
+                ctx.lineTo(this.x - this.size, this.y + this.size);
+                ctx.fill();
+            }
+        }
+
+        function animate(timestamp) {
+            if (gameState !== 'PLAYING') return;
+
+            // Timer
+            if(timestamp - lastTimeUpdate >= 1000) {
+                gameTime++;
+                lastTimeUpdate = timestamp;
+                updateHUD();
+            }
+
+            camera.x = Math.max(0, Math.min(player.x - canvas.width / 2, WORLD_SIZE - canvas.width));
+            camera.y = Math.max(0, Math.min(player.y - canvas.height / 2, WORLD_SIZE - canvas.height));
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.save();
+            ctx.translate(-camera.x, -camera.y);
+
+            // DRAW WORLD
+            ctx.strokeStyle = '#1a1a2e'; ctx.lineWidth = 2; const gridSize = 100;
+            const startX = Math.floor(camera.x / gridSize) * gridSize;
+            const startY = Math.floor(camera.y / gridSize) * gridSize;
+            for(let x = startX; x < camera.x + canvas.width + gridSize; x += gridSize) {
+                if(x > WORLD_SIZE) break;
+                ctx.beginPath(); ctx.moveTo(x, Math.max(0, camera.y)); ctx.lineTo(x, Math.min(WORLD_SIZE, camera.y + canvas.height)); ctx.stroke();
+            }
+            for(let y = startY; y < camera.y + canvas.height + gridSize; y += gridSize) {
+                if(y > WORLD_SIZE) break;
+                ctx.beginPath(); ctx.moveTo(Math.max(0, camera.x), y); ctx.lineTo(Math.min(WORLD_SIZE, camera.x + canvas.width), y); ctx.stroke();
+            }
+            
+            ctx.strokeStyle = '#ff0055'; ctx.lineWidth = 5; ctx.strokeRect(0, 0, WORLD_SIZE, WORLD_SIZE);
+
+            // DRAW OBSTACLES
+            ctx.shadowBlur = 10; ctx.shadowColor = 'rgba(0, 243, 255, 0.3)';
+            ctx.fillStyle = 'rgba(10, 30, 50, 0.9)'; ctx.strokeStyle = '#00aaff'; ctx.lineWidth = 2;
+            obstacles.forEach(obs => {
+                if(obs.x + obs.w < camera.x || obs.x > camera.x + camera.w || obs.y + obs.h < camera.y || obs.y > camera.y + camera.h) return;
+                ctx.fillRect(obs.x, obs.y, obs.w, obs.h); ctx.strokeRect(obs.x, obs.y, obs.w, obs.h);
+                ctx.beginPath(); ctx.moveTo(obs.x, obs.y); ctx.lineTo(obs.x + 10, obs.y + 10);
+                ctx.moveTo(obs.x + obs.w, obs.y + obs.h); ctx.lineTo(obs.x + obs.w - 10, obs.y + obs.h - 10); ctx.stroke();
+            });
+            ctx.shadowBlur = 0;
+
+            if (joystick.mag > 0) movePlayer(Math.cos(joystick.angle)*player.speed*joystick.mag, Math.sin(joystick.angle)*player.speed*joystick.mag);
+
+            // DRAW PLAYER
+            ctx.fillStyle = player.color; ctx.shadowBlur = 20; ctx.shadowColor = player.color;
+            ctx.beginPath(); ctx.arc(player.x, player.y, 10, 0, Math.PI*2); ctx.fill();
+            
+            if(player.weapons.aura.level > 0) {
+                ctx.strokeStyle = `rgba(255, 255, 0, ${0.1 + (Math.sin(timestamp/200)*0.1)})`; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(player.x, player.y, player.weapons.aura.radius, 0, Math.PI*2); ctx.stroke();
+            }
+            ctx.shadowBlur = 0;
+
+            // SHOOTING
+            player.weapons.missile.cooldown--;
+            if(player.weapons.missile.cooldown <= 0 && enemies.length > 0) {
+                let nearest = null; let minDist = 600;
+                enemies.forEach(e => {
+                    const d = Math.hypot(e.x - player.x, e.y - player.y);
+                    if(d < minDist) { minDist = d; nearest = e; }
+                });
+                
+                if(nearest) {
+                    const baseDx = nearest.x - player.x;
+                    const baseDy = nearest.y - player.y;
+                    const baseAngle = Math.atan2(baseDy, baseDx);
+                    
+                    const count = player.weapons.missile.count;
+                    for(let i=0; i < count; i++) {
+                        const offsetMult = i - (count - 1) / 2;
+                        const spreadAngle = 0.2; 
+                        const finalAngle = baseAngle + (offsetMult * spreadAngle);
+                        
+                        const vx = Math.cos(finalAngle) * 10;
+                        const vy = Math.sin(finalAngle) * 10;
+                        
+                        projectiles.push({ x: player.x, y: player.y, vx: vx, vy: vy, life: 80 });
+                    }
+                    player.weapons.missile.cooldown = player.weapons.missile.maxCooldown;
+                }
+            }
+
+            // Aura Damage
+            player.weapons.aura.tick++;
+            if(player.weapons.aura.tick > 20) {
+                 enemies.forEach(e => {
+                    if(Math.hypot(e.x - player.x, e.y - player.y) < player.weapons.aura.radius + e.size) {
+                        e.hp -= player.weapons.aura.damage;
+                        spawnDamageNumber(e.x, e.y - 15, player.weapons.aura.damage);
+                    }
+                 });
+                 player.weapons.aura.tick = 0;
+            }
+
+            // SPAWNING
+            let currentInterval = Math.max(60, 1200 - (gameTime * 5.5));
+            spawnTimer += 16.6; 
+            
+            if (spawnTimer > currentInterval && enemies.length < 250) { 
+                enemies.push(new Enemy());
+                spawnTimer = 0;
+            }
+
+            enemies.forEach((e, index) => {
+                e.update(); e.draw();
+                // Collision
+                if(Math.hypot(e.x - player.x, e.y - player.y) < e.size + 10) { 
+                    const dmgTaken = Math.max(1, e.damage - player.armor);
+                    player.hp -= dmgTaken; 
+                    updateHUD(); 
+                    if(player.hp <= 0) doGameOver(); 
+                }
+                
+                // Death
+                if(e.hp <= 0) {
+                    enemies.splice(index, 1);
+                    let safeX = e.x, safeY = e.y;
+                    for(let obs of obstacles) {
+                        if(checkRectCollide(safeX, safeY, 5, obs)) {
+                             safeX = safeX + (player.x - safeX)*0.2;
+                             safeY = safeY + (player.y - safeY)*0.2;
+                        }
+                    }
+                    xpGems.push({x: safeX, y: safeY, val: 5});
+                    for(let i=0;i<5;i++) particles.push({x:e.x, y:e.y, vx:(Math.random()-0.5)*5, vy:(Math.random()-0.5)*5, life:20, color:'#ff0055'});
+                }
+            });
+
+            projectiles.forEach((p, i) => {
+                p.x += p.vx; p.y += p.vy; p.life--;
+                for(let obs of obstacles) { if(checkRectCollide(p.x, p.y, 4, obs)) { p.life = 0; break; } }
+                ctx.fillStyle = '#ffff00'; ctx.shadowBlur = 10; ctx.shadowColor = '#ffff00';
+                ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI*2); ctx.fill(); ctx.shadowBlur = 0;
+                let hit = false;
+                for(let e of enemies) {
+                    if(Math.hypot(p.x - e.x, p.y - e.y) < e.size + 4) {
+                        e.hp -= player.weapons.missile.damage; spawnDamageNumber(e.x, e.y - 20, player.weapons.missile.damage); hit = true; break;
+                    }
+                }
+                if(hit || p.life <= 0) projectiles.splice(i, 1);
+            });
+
+            xpGems.forEach((g, i) => {
+                ctx.fillStyle = '#00ff00'; ctx.fillRect(g.x-4, g.y-4, 8, 8);
+                const d = Math.hypot(g.x - player.x, g.y - player.y);
+                if(d < player.magnet) { 
+                    g.x += (player.x - g.x)*0.1; 
+                    g.y += (player.y - g.y)*0.1; 
+                }
+                if(d < 20) { player.xp += g.val; xpGems.splice(i, 1); checkLevelUp(); updateHUD(); }
+            });
+
+            particles.forEach((p, i) => {
+                p.x += p.vx; p.y += p.vy; p.life--;
+                ctx.fillStyle = p.color; ctx.globalAlpha = p.life/20; ctx.fillRect(p.x, p.y, 4, 4); ctx.globalAlpha = 1;
+                if(p.life <= 0) particles.splice(i, 1);
+            });
+
+            damageNumbers.forEach((d, i) => {
+                d.y -= 0.5; d.life--;
+                ctx.fillStyle = 'white'; ctx.font = '14px Orbitron'; ctx.fillText(Math.floor(d.val), d.x, d.y);
+                if(d.life <= 0) damageNumbers.splice(i, 1);
+            });
+
+            ctx.restore();
+
+            if(joystick.active) {
+                ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(joystick.originX, joystick.originY, 40, 0, Math.PI*2); ctx.stroke();
+                ctx.fillStyle = 'rgba(255,255,255,0.4)';
+                ctx.beginPath(); ctx.arc(joystick.x, joystick.y, 15, 0, Math.PI*2); ctx.fill();
+            }
+
+            requestAnimationFrame(animate);
+        }
+        
+        function spawnDamageNumber(x, y, v) { damageNumbers.push({x,y,val:v, life:40}); }
+        
+        function checkLevelUp() {
+            if(player.xp >= player.maxXp) {
+                player.lvl++; player.xp = 0; player.maxXp = Math.floor(player.maxXp * 1.5);
+                showUpgradeScreen();
+            }
+        }
+
+        // --- RNG UPGRADE SYSTEM ---
+        function showUpgradeScreen() {
+            gameState = 'PAUSED';
+            const container = document.getElementById('upgrade-options');
+            container.innerHTML = ''; 
+
+            const pool = [
+                { id: 'dmg', name: 'Weapon Calibrator', desc: 'Increases Damage by 15', weight: 25 },
+                { id: 'spd', name: 'Cooling System', desc: 'Increases Attack Speed', weight: 25 },
+                { id: 'hp', name: 'Hull Reinforcement', desc: 'Max HP +20 & Heal 30', weight: 20 },
+                { id: 'move', name: 'Thruster Overdrive', desc: 'Movement Speed +', weight: 25 },
+                { id: 'def', name: 'Titanium Plating', desc: 'Defense +1 (Reduce Dmg)', weight: 20 },
+                { id: 'mag', name: 'Graviton Field', desc: 'Magnet Range +30', weight: 20 },
+                { id: 'heal', name: 'Nanobot Repair', desc: 'Full Heal', weight: 15 },
+                { id: 'multi', name: 'SPLIT FIRE PROTOCOL', desc: '+1 Projectile (RARE)', weight: 5, rare: true }
+            ];
+
+            const options = [];
+            while(options.length < 3) {
+                const totalWeight = pool.reduce((a,b) => a + b.weight, 0);
+                let r = Math.random() * totalWeight;
+                for(let item of pool) {
+                    if(r < item.weight) {
+                        if(!options.includes(item)) options.push(item);
+                        break;
+                    }
+                    r -= item.weight;
+                }
+            }
+
+            options.forEach(opt => {
+                const btn = document.createElement('button');
+                btn.className = `upgrade-btn ${opt.rare ? 'rare' : ''}`;
+                btn.innerHTML = `<span class="up-title">${opt.name}</span><span class="up-desc">${opt.desc}</span>`;
+                btn.onclick = () => selectUpgrade(opt.id);
+                container.appendChild(btn);
+            });
+
+            document.getElementById('levelUpScreen').classList.remove('hidden');
+        }
+
+        window.selectUpgrade = (type) => {
+            if(type === 'dmg') player.weapons.missile.damage += 15;
+            if(type === 'spd') player.weapons.missile.maxCooldown = Math.max(5, player.weapons.missile.maxCooldown - 5);
+            if(type === 'hp') { player.maxHp += 20; player.hp += 30; if(player.hp>player.maxHp) player.hp = player.maxHp; }
+            if(type === 'move') player.speed += 0.4;
+            if(type === 'def') player.armor += 1;
+            if(type === 'mag') player.magnet += 30;
+            if(type === 'heal') player.hp = player.maxHp;
+            if(type === 'multi') player.weapons.missile.count += 1;
+
+            document.getElementById('levelUpScreen').classList.add('hidden'); 
+            gameState = 'PLAYING'; 
+            lastTimeUpdate = performance.now();
+            updateHUD();
+            requestAnimationFrame(animate);
+        }
+
+        function doGameOver() {
+            gameState = 'GAMEOVER'; 
+            document.getElementById('gameUI').classList.add('hidden');
+            document.getElementById('gameOverScreen').classList.remove('hidden');
+            document.getElementById('finalTime').innerText = window.formatTime(gameTime);
+            window.saveRunData(gameTime);
+        }
+
+        function updateHUD() {
+            document.getElementById('hpBar').style.width = (player.hp / player.maxHp * 100) + "%";
+            document.getElementById('xpBar').style.width = (player.xp / player.maxXp * 100) + "%";
+            document.getElementById('levelDisplay').innerText = player.lvl;
+            document.getElementById('timer-display').innerText = window.formatTime(gameTime);
+            document.getElementById('s-time').innerText = window.formatTime(gameTime);
+            document.getElementById('s-hp').innerText = Math.floor(player.hp) + "/" + player.maxHp;
+            document.getElementById('s-dmg').innerText = Math.floor(player.weapons.missile.damage);
+            document.getElementById('s-cnt').innerText = player.weapons.missile.count;
+            document.getElementById('s-move').innerText = player.speed.toFixed(1);
+            document.getElementById('s-def').innerText = player.armor;
+            document.getElementById('s-mag').innerText = player.magnet;
+            
+            let rate = (60 / player.weapons.missile.maxCooldown).toFixed(1);
+            document.getElementById('s-spd').innerText = rate + "/s";
+        }
+    </script>
+</body>
+</html>
